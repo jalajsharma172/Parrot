@@ -44,10 +44,10 @@ const io = new Server(server, {
 // io handle everything in
 handleSocketConnections(io);
 
-// HTTP Requests
-// app.get('/', (req, res) => {
-//   res.send({ status: true });
-// });
+// This is only create for Uptime Platform
+app.get('/', (req, res) => {
+  res.send({ status: true });
+});
 
 app.use('/api', router);
 
