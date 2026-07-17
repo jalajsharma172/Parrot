@@ -46,7 +46,7 @@ handleSocketConnections(io);
 
 // This is only create for Uptime Platform
 app.get('/', (req, res) => {
-  res.send({ status: true });
+  res.status(200).json({ status: true });
 });
 
 app.use('/api', router);
