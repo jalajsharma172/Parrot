@@ -105,12 +105,14 @@ export default function Navbar({ joinedRoomId, persistentScore, myScore, handleL
                     </>
                 )}
                 {/* Temp for Checking Server Temp hai */}
-                <div className="connection-indicator">
-                    <span className={`connection-dot ${isConnected ? 'online animate-pulse' : 'offline'}`} />
-                    <span className="connection-text">
-                        {isConnected ? 'Server Connected' : 'Disconnected'}
-                    </span>
-                </div>
+                {/*
+                    <div className="connection-indicator">
+                        <span className={`connection-dot ${isConnected ? 'online animate-pulse' : 'offline'}`} />
+                        <span className="connection-text">
+                            {isConnected ? 'Server Connected' : 'Disconnected'}
+                        </span>
+                    </div>
+                */}
 
                 {/* Notifications Bell Dropdown */}
                 <div className="notifications-section-wrapper" ref={notificationsRef} style={{ position: 'relative' }}>
