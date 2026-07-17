@@ -6,7 +6,9 @@ An end-to-end multiplayer pictionary game built with React, Node.js (Express), W
 - **Backend URL**: [https://your-skribbl-clone.onrender.com](https://your-skribbl-clone.onrender.com) 
 - **Frontend URL**: [https://parrot-theta-eosin.vercel.app/](https://parrot-theta-eosin.vercel.app/) 
 - **Uptime monitering URL**: [https://dashboard.uptimerobot.com/monitors/803529260](https://dashboard.uptimerobot.com/monitors/803529260) 
-    (Uptime is used to consistantly walkup server on Render as free teir sleeps after 15 mins of inactivity)
+    (Uptime is used to consistantly walkup server on Render as free teir sleeps after 15 mins of inactivity).
+    
+The Shared Monitoring Dashboard is for premium users only.
 ![alt text](image.png)
 
 ## Architecture Overview
@@ -15,7 +17,7 @@ An end-to-end multiplayer pictionary game built with React, Node.js (Express), W
 graph TD
     Client[React + Tailwind CSS Frontend] <-->|Real-time Socket.IO| Server[Express Server]
     Server <--> GameEngine[OOP State Machine: Room / Game / Player]
-    Server <--> Database[SQLite Word Library]
+    Server <--> Database[MongoDB Word Library]
 ```
 
 ### 1. Real-time Drawing Sync Engine
@@ -35,7 +37,7 @@ The backend structures multiplayer states in well-defined JavaScript classes:
 ### 3. Word Matching & Close Guess Engine
 - **Exact Matches**: User inputs are sanitized (trimmed, case-insensitive) and compared with the target word.
 - **Close Guess Detection**: Uses an optimized edit distance algorithm (Levenshtein) to check if a player's guess is within an edit distance of **1**. If close, it notifies the player privately and shares it in the correct guessers' sub-chat to prevent spoilers.
-- **Word Bank**: Categorized word libraries (Animals, Food, Objects, Places, Actions) are pre-loaded from an SQLite database.
+- **Word Bank**: Categorized word libraries (Animals, Food, Objects, Places, Actions) are pre-loaded from a MongoDB database.
 
 ---
 
