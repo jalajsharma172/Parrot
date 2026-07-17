@@ -1,272 +1,167 @@
-import db from './db.js';
+import mongoose from 'mongoose';
+
+const scoreSchema = new mongoose.Schema({
+  playerId: { type: String, unique: true, required: true },
+  playerName: { type: String, default: "" },
+  score: { type: Number, default: 0 }
+});
+
+const Score = mongoose.model('Score', scoreSchema);
+
+const offlineInviteSchema = new mongoose.Schema({
+  targetPlayerId: { type: String, required: true },
+  senderPlayerId: { type: String, required: true },
+  senderPlayerName: { type: String, required: true },
+  roomId: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const OfflineInvite = mongoose.model('OfflineInvite', offlineInviteSchema);
 
 // Initialize the scores table
-export const initScoresDb = () => {
-  return new Promise((resolve, reject) => {
-    db.all("PRAGMA table_info(scores)", (err, rows) => {
-      if (err) {
-        createScoresTable(resolve, reject);
-        return;
-      }
-      
-      if (rows && rows.length > 0) {
-        const hasPlayerId = rows.some(row => row.name === 'playerId');
-        const hasPlayerName = rows.some(row => row.name === 'playerName');
-        
-        if (!hasPlayerId) {
-          console.log('Detected legacy scores table without playerId. Recreating...');
-          db.run('DROP TABLE scores', (dropErr) => {
-            if (dropErr) {
-              console.error('Failed to drop legacy scores table:', dropErr);
-              return reject(dropErr);
-            }
-            createScoresTable(resolve, reject);
-          });
-        } else if (!hasPlayerName) {
-          console.log('Adding playerName column to scores table...');
-          db.run('ALTER TABLE scores ADD COLUMN playerName TEXT DEFAULT ""', (alterErr) => {
-            if (alterErr) {
-              console.error('Failed to add playerName column:', alterErr);
-              return reject(alterErr);
-            }
-            resolve();
-          });
-        } else {
-          resolve();
-        }
-      } else {
-        createScoresTable(resolve, reject);
-      }
-    });
-  });
-};
-
-const createScoresTable = (resolve, reject) => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS scores (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      playerId TEXT UNIQUE NOT NULL,
-      playerName TEXT,
-      score INTEGER NOT NULL
-    )
-  `, (err) => {
-    if (err) {
-      console.error('Failed to create scores table:', err);
-      return reject(err);
-    }
-    resolve();
-  });
+export const initScoresDb = async () => {
+  // Mongoose automatically handles collection creation.
+  console.log('Scores DB initialized (Mongoose).');
 };
 
 // Save or update score for a player by ID
-export const savePlayerScore = (playerId, score) => {
-  return new Promise((resolve, reject) => {
-    db.run(`
-      INSERT OR REPLACE INTO scores (playerId, score)
-      VALUES (?, ?)
-    `, [playerId, score], (err) => {
-      if (err) {
-        console.error(`Error saving score for ${playerId}:`, err);
-        return reject(err);
-      }
-      resolve();
-    });
-  });
+export const savePlayerScore = async (playerId, score) => {
+  try {
+    await Score.findOneAndUpdate(
+      { playerId }, 
+      { score }, 
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  } catch (err) {
+    console.error(`Error saving score for ${playerId}:`, err);
+    throw err;
+  }
 };
 
 // Get score for a player by ID
-export const getPlayerScore = (playerId) => {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT score FROM scores WHERE playerId = ?', [playerId], (err, row) => {
-      if (err) {
-        console.error(`Error fetching score for ${playerId}:`, err);
-        return reject(err);
-      }
-      resolve(row ? row.score : 0);
-    });
-  });
+export const getPlayerScore = async (playerId) => {
+  try {
+    const doc = await Score.findOne({ playerId });
+    return doc ? doc.score : 0;
+  } catch (err) {
+    console.error(`Error fetching score for ${playerId}:`, err);
+    throw err;
+  }
 };
 
 // Update name for a player by ID
-export const updatePlayerName = (playerId, playerName) => {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT score FROM scores WHERE playerId = ?', [playerId], (err, row) => {
-      if (err) {
-        console.error(`Error fetching score during name update for ${playerId}:`, err);
-        return reject(err);
-      }
-      if (row) {
-        db.run('UPDATE scores SET playerName = ? WHERE playerId = ?', [playerName, playerId], (err2) => {
-          if (err2) return reject(err2);
-          resolve(row.score);
-        });
-      } else {
-        db.run('INSERT INTO scores (playerId, playerName, score) VALUES (?, ?, 0)', [playerId, playerName], (err2) => {
-          if (err2) return reject(err2);
-          resolve(0);
-        });
-      }
-    });
-  });
+export const updatePlayerName = async (playerId, playerName) => {
+  try {
+    const doc = await Score.findOneAndUpdate(
+      { playerId }, 
+      { playerName }, 
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    return doc.score || 0;
+  } catch (err) {
+    console.error(`Error updating player name for ${playerId}:`, err);
+    throw err;
+  }
 };
 
 // Increment score for a player by ID
-export const incrementPlayerScore = (playerId, amount) => {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT score, playerName FROM scores WHERE playerId = ?', [playerId], (err, row) => {
-      if (err) {
-        console.error(`Error fetching score during increment for ${playerId}:`, err);
-        return reject(err);
-      }
-      const currentScore = row ? row.score : 0;
-      const playerName = row ? row.playerName : '';
-      const newScore = currentScore + amount;
-      
-      if (row) {
-        db.run('UPDATE scores SET score = ? WHERE playerId = ?', [newScore, playerId], (err2) => {
-          if (err2) return reject(err2);
-          resolve(newScore);
-        });
-      } else {
-        db.run('INSERT INTO scores (playerId, playerName, score) VALUES (?, ?, ?)', [playerId, playerName, newScore], (err2) => {
-          if (err2) return reject(err2);
-          resolve(newScore);
-        });
-      }
-    });
-  });
+export const incrementPlayerScore = async (playerId, amount) => {
+  try {
+    const doc = await Score.findOneAndUpdate(
+      { playerId },
+      { $inc: { score: amount } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    return doc.score;
+  } catch (err) {
+    console.error(`Error incrementing score for ${playerId}:`, err);
+    throw err;
+  }
 };
 
 // Search users matching a query
-export const searchUsers = (searchQuery) => {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      SELECT playerId, playerName, score 
-      FROM scores 
-      WHERE playerName LIKE ? AND playerName != ""
-      ORDER BY score DESC
-      LIMIT 10
-    `;
-    db.all(sql, [`%${searchQuery}%`], (err, rows) => {
-      if (err) {
-        console.error(`Error searching users with query "${searchQuery}":`, err);
-        return reject(err);
-      }
-      resolve(rows || []);
-    });
-  });
+export const searchUsers = async (searchQuery) => {
+  try {
+    const rows = await Score.find({ 
+      playerName: new RegExp(searchQuery, 'i'),
+      playerName: { $ne: "" } 
+    })
+    .sort({ score: -1 })
+    .limit(10)
+    .select('playerId playerName score -_id')
+    .lean();
+    return rows || [];
+  } catch (err) {
+    console.error(`Error searching users with query "${searchQuery}":`, err);
+    throw err;
+  }
 };
 
 // Check if a player ID / username already exists
-export const checkPlayerIdExists = (playerId) => {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT 1 FROM scores WHERE playerId = ?', [playerId], (err, row) => {
-      if (err) {
-        console.error(`Error checking player ID existence for ${playerId}:`, err);
-        return reject(err);
-      }
-      resolve(!!row);
-    });
-  });
+export const checkPlayerIdExists = async (playerId) => {
+  try {
+    const count = await Score.countDocuments({ playerId });
+    return count > 0;
+  } catch (err) {
+    console.error(`Error checking player ID existence for ${playerId}:`, err);
+    throw err;
+  }
 };
 
 // Rename player ID / username and migrate scores
-export const renamePlayerId = (oldPlayerId, newPlayerId) => {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT score FROM scores WHERE playerId = ?', [oldPlayerId], (err, row) => {
-      if (err) {
-        console.error(`Error finding score for rename of ${oldPlayerId}:`, err);
-        return reject(err);
-      }
-      if (row) {
-        db.run('UPDATE scores SET playerId = ?, playerName = ? WHERE playerId = ?', [newPlayerId, newPlayerId, oldPlayerId], (err2) => {
-          if (err2) {
-            console.error(`Error renaming playerId from ${oldPlayerId} to ${newPlayerId}:`, err2);
-            return reject(err2);
-          }
-          resolve(row.score);
-        });
-      } else {
-        db.run('INSERT INTO scores (playerId, playerName, score) VALUES (?, ?, 0)', [newPlayerId, newPlayerId], (err2) => {
-          if (err2) {
-            console.error(`Error inserting new player name ${newPlayerId} on rename:`, err2);
-            return reject(err2);
-          }
-          resolve(0);
-        });
-      }
-    });
-  });
+export const renamePlayerId = async (oldPlayerId, newPlayerId) => {
+  try {
+    const doc = await Score.findOne({ playerId: oldPlayerId });
+    if (doc) {
+      doc.playerId = newPlayerId;
+      doc.playerName = newPlayerId;
+      await doc.save();
+      return doc.score;
+    } else {
+      await Score.create({ playerId: newPlayerId, playerName: newPlayerId, score: 0 });
+      return 0;
+    }
+  } catch (err) {
+    console.error(`Error renaming playerId from ${oldPlayerId} to ${newPlayerId}:`, err);
+    throw err;
+  }
 };
 
 // Initialize invites/notifications database table
-export const initInvitesDb = () => {
-  return new Promise((resolve, reject) => {
-    db.run(`
-      CREATE TABLE IF NOT EXISTS offline_invites (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        targetPlayerId TEXT NOT NULL,
-        senderPlayerId TEXT NOT NULL,
-        senderPlayerName TEXT NOT NULL,
-        roomId TEXT NOT NULL,
-        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `, (err) => {
-      if (err) {
-        console.error('Failed to create offline_invites table:', err);
-        return reject(err);
-      }
-      resolve();
-    });
-  });
+export const initInvitesDb = async () => {
+  // Mongoose automatically handles collection creation.
+  console.log('Invites DB initialized (Mongoose).');
 };
 
 // Save a pending invite
-export const saveOfflineInvite = (targetPlayerId, senderPlayerId, senderPlayerName, roomId) => {
-  return new Promise((resolve, reject) => {
-    db.run(`
-      INSERT INTO offline_invites (targetPlayerId, senderPlayerId, senderPlayerName, roomId)
-      VALUES (?, ?, ?, ?)
-    `, [targetPlayerId, senderPlayerId, senderPlayerName, roomId], (err) => {
-      if (err) {
-        console.error('Failed to save offline invite:', err);
-        return reject(err);
-      }
-      resolve();
-    });
-  });
+export const saveOfflineInvite = async (targetPlayerId, senderPlayerId, senderPlayerName, roomId) => {
+  try {
+    await OfflineInvite.create({ targetPlayerId, senderPlayerId, senderPlayerName, roomId });
+  } catch (err) {
+    console.error('Failed to save offline invite:', err);
+    throw err;
+  }
 };
 
 // Retrieve offline invites for a player ID
-export const getOfflineInvites = (targetPlayerId) => {
-  return new Promise((resolve, reject) => {
-    db.all(`
-      SELECT senderPlayerId, senderPlayerName, roomId, createdAt 
-      FROM offline_invites 
-      WHERE targetPlayerId = ?
-    `, [targetPlayerId], (err, rows) => {
-      if (err) {
-        console.error(`Error fetching offline invites for ${targetPlayerId}:`, err);
-        return reject(err);
-      }
-      resolve(rows || []);
-    });
-  });
+export const getOfflineInvites = async (targetPlayerId) => {
+  try {
+    const rows = await OfflineInvite.find({ targetPlayerId })
+      .select('senderPlayerId senderPlayerName roomId createdAt -_id')
+      .lean();
+    return rows || [];
+  } catch (err) {
+    console.error(`Error fetching offline invites for ${targetPlayerId}:`, err);
+    throw err;
+  }
 };
 
 // Clear offline invites for a player ID
-export const clearOfflineInvites = (targetPlayerId) => {
-  return new Promise((resolve, reject) => {
-    db.run(`
-      DELETE FROM offline_invites 
-      WHERE targetPlayerId = ?
-    `, [targetPlayerId], (err) => {
-      if (err) {
-        console.error(`Error clearing offline invites for ${targetPlayerId}:`, err);
-        return reject(err);
-      }
-      resolve();
-    });
-  });
+export const clearOfflineInvites = async (targetPlayerId) => {
+  try {
+    await OfflineInvite.deleteMany({ targetPlayerId });
+  } catch (err) {
+    console.error(`Error clearing offline invites for ${targetPlayerId}:`, err);
+    throw err;
+  }
 };
-
